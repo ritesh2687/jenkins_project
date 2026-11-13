@@ -1,0 +1,69 @@
+pipeline {
+
+    agent any
+
+    options {
+        timestamps()
+    }
+
+    triggers {
+        pollSCM('H/2 * * * *')
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                echo 'Downloading source code from GitHub'
+                checkout scm
+            }
+        }
+
+        stage('Check Environment') {
+            steps {
+                bat 'java -version'
+                bat 'git --version'
+            }
+        }
+
+        stage('Build and Test') {
+            steps {
+                echo 'Building and testing application'
+                bat 'mvnw.cmd -B clean verify'
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                echo 'Saving generated JAR'
+                archiveArtifacts artifacts: 'target/*.jar',
+                                 fingerprint: true
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo 'Deploying application locally'
+
+                bat 'if not exist deploy mkdir deploy'
+
+                bat 'copy /Y target\\*.jar deploy\\'
+            }
+        }
+    }
+
+    post {
+        always {
+            junit testResults: '**/target/surefire-reports/TEST-*.xml',
+                  allowEmptyResults: true
+        }
+
+        success {
+            echo 'CI/CD PIPELINE SUCCESSFUL!'
+        }
+
+        failure {
+            echo 'PIPELINE FAILED. CHECK CONSOLE OUTPUT.'
+        }
+    }
+}
